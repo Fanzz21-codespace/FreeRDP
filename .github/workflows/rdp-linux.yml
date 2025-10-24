@@ -5,7 +5,7 @@ on:
 
 jobs:
   secure-rdp:
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 3600
 
     steps:
