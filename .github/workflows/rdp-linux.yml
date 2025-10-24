@@ -1,0 +1,62 @@
+name: RDP (Linux + Tailscale)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  secure-rdp:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3600
+
+    steps:
+      - name: Update & Install Desktop + xRDP
+        run: |
+          sudo apt update -y
+          sudo apt install -y xfce4 xfce4-goodies xrdp dbus-x11
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
+
+      - name: Create RDP User with Secure Password
+        run: |
+          username="rdpuser"
+          password=$(tr -dc A-Za-z0-9 | head -c 10)
+          sudo adduser --disabled-password --gecos "" $username
+          echo "$username:$password" | sudo chpasswd
+          sudo usermod -aG sudo $username
+          echo "RDP_USER=$username" >> $GITHUB_ENV
+          echo "RDP_PASS=$password" >> $GITHUB_ENV
+
+      - name: Configure XFCE Session
+        run: |
+          echo xfce4-session > ~/.xsession
+          sudo cp ~/.xsession /home/$RDP_USER/
+          sudo chown $RDP_USER:$RDP_USER /home/$RDP_USER/.xsession
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          rm google-chrome-stable_current_amd64.deb
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=ubuntu-rdp-${{ github.run_id }}
+
+      - name: Show Tailscale Info
+        run: |
+          echo "Tailscale connection info:"
+          sudo tailscale status
+          echo "============================"
+          echo "Username: $RDP_USER"
+          echo "Password: $RDP_PASS"
+          echo "Gunakan IP di bawah ini untuk Remote Desktop (port 3389):"
+          sudo tailscale ip -4
+          echo "============================"
+
+      - name: Keep Session Alive
+        run: |
+          while true; do
+            echo "[$(date)] RDP session running..."
+            sleep 300
+          done
